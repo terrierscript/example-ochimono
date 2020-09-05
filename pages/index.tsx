@@ -10,6 +10,9 @@ type Item = {
   id: number
 }
 
+type ItemPoint = Omit<Item, "id">
+
+
 const generateArray = (w = 6, h = 12) => {
   return Array.from({ length: h }).fill(
      Array.from({ length: w }).fill(
@@ -17,7 +20,8 @@ const generateArray = (w = 6, h = 12) => {
     )
   )
 }
-const initField = generateArray()
+// @ts-ignore
+const initField: Field = generateArray()
 
 const isValidCurrent = (state:State, maybe:Item[]) => {
   return maybe.some(m => {
@@ -65,37 +69,44 @@ const getDismisses = (field:Field, v:number,h:number,c:number, arr={}) => {
   return z
 }
 
-const calcConcat = (field:Field, c:Item) => {
+const calcConcat = (field:Field, c:ItemPoint) => {
   const rr = getDismisses(field, c.v,c.h,c.c,{})
   return Object.keys(rr).map(rr => rr.split("_"))
 }
 
-// console.log(
-//   calcDismiss({field:[
-//     [0,1,0,2],
-//     [0,1,1,2]
-//   ], current: [{x:0, y:1,c:1 }] })
-// )
-
-const gravityUpdate = (field, dismissTarget ) => {
-  console.log(field)
-  const dy = dismissTarget
-    .map(d => d[0])
-    .map( y => {
+const gravityUpdate = (field: Field, dismissTarget: [number,number][] ) => {
+  if(dismissTarget.length === 0){
+    return {field, drops: []}
+  }
+  const drops : ItemPoint[]=[]
+  dismissTarget
+    .map(([v,h])=> h)
+    .map( h => {
+      const rr =field.map(r => r[h])
+      const z = rr.reduce((acc,cur) => {
+        if(cur === 0) return acc
+        return [...acc, cur]
+      },[])
+      const zeroPad = Array
+        .from({length:rr.length - z.length})
+        .fill(0)
+      const zz = [...zeroPad, ...z]
+      zz.map((z,i) => {
+        if(field[i][h] !== z && z !== 0){
+          drops.push({v:i, h: Number(h), c:z })
+        }
+        field[i][h] = z
+      })
     })
-  return field
+  return {field, drops}
 }
-// console.log(
-//   gravityUpdate({field:[
-//     [1,1,0,0],
-//     [0,0,1,0],
-//     [1,0,0,1]
-//   ], current: [1,0],[1,1],[2,1],[2,2] })
-// )
 
-const dismssUpdate = (field: Field, searchTarget: Item[]) => {
+
+const dismssUpdate = (field: Field, searchTarget: ItemPoint[]) => {
   const dismisses = []
+  console.log("=====")
   searchTarget?.map(c => {
+    // console.log("search", c.v,c.h)
     const dismissTarget = calcConcat(field, c)
     // console.log(JSON.stringify(dismissTarget))
     if(dismissTarget.length < 4){
@@ -107,8 +118,12 @@ const dismssUpdate = (field: Field, searchTarget: Item[]) => {
     dismisses.push(dismissTarget)
   })
   // return field
-  const ff = gravityUpdate(field, dismisses)
-  return ff
+  const {field: newField, drops} = gravityUpdate(field, dismisses.flat())
+  console.log("DROPS",drops)
+  if(drops.length > 0){
+    return dismssUpdate(field, drops);
+  }
+  return newField
 }
 
 type State = {
@@ -161,6 +176,16 @@ const gameReducer = (state:State, action) => {
       }
     }
     case "ROTATE": {
+      return {
+        ...state,
+        current: [{
+          ...state.current[0],
+          c: state.current[1].c,
+        },{
+          ...state.current[1],
+          c: state.current[0].c,
+        }]
+      }
     }  
   }
   return state
@@ -181,13 +206,6 @@ const useMemoCurrentField = (state) => {
     return mergeField(state.field, state.current)
   },[state])
 }
-
-// const useDispachCleanDetect = (dispatch,state) => {
-//   const [beforeId, setBeforeId] = useState(state.currentId)
-//   useEffect(() => {
-
-//   },[])
-// }
 
 const useFrame = () => {
   const [timer, setTimer] = useState(new Date().getTime())
@@ -212,7 +230,7 @@ const useFrame = () => {
 }
 const useKeyPress = (dispatch) => {
   const handleUserKeyPress = (e) => {
-    console.log(e.code)
+    // console.log(e.code)
     switch (e.code) {
       case "ArrowLeft":
         return dispatch("KEY_LEFT")
@@ -258,17 +276,17 @@ export default function Home() {
   const r = field.map( f => {
     return f.map(ff => {
       switch(ff){
-        case 0: return "➕"
+        case 0: return "⬜️"
         case 1: return "🚒"
         case 2: return "🚙"
-        case 3: return "🚚"
+        case 3: return "🛵"
       }
     }).join(" ")
   }).join("\n")
     
   return (
     <div>
-      <pre>
+      <pre style={{fontSize: 20}}>
         {r}
       </pre>
     </div>
